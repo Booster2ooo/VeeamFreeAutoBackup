@@ -33,7 +33,7 @@ This is the default structure of the configuration file (DO NO INCLUDE COMMENTS 
     }
   , "Hosts": [ // (array)list of servers configured in Veeam
         {
-            "Server": "vsphere.indev.be"     // server name 
+            "Server": "vCenter"     // server name 
           , "BackupSets": [        // (array)list of backup sets to be made on this server
                 {          
                     "Alias": "MyFirstBackupSet" // name of the backup set
