@@ -1,0 +1,1 @@
+[VeeamFreeAutoBackup - FAILURE] {0}

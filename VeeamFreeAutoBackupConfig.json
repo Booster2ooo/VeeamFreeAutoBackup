@@ -1,0 +1,49 @@
+{
+	"Default": {
+		"CompressionLevel": "5"
+	  , "EnableQuiescence": false
+	  , "EnableEncryption": false
+	  , "EncryptionKey":	""
+	  , "Retention":		"In1Month"
+	  , "Destination":		"D:\\Backups"
+	  , "NetCredential":	null
+	}
+  , "Hosts": [
+		{
+			"Server": "vCenter"	  
+		  , "BackupSets": [
+				{		  
+					"Alias": "BackupGroup1"
+				  , "Vms": [ 
+						"MsSQL | Win2012 | 91.121.218.197"
+					  , "Bewaffel | Win2008 | 178.32.45.19"
+					  , "Jour | Win2008 | 149.202.237.208"
+					]
+				}
+			  , {
+					"Alias": "BackupGroup2"
+				  , "Vms": [ 
+						"DEDI 2 | Win2012 | 5.135.219.157"
+					  , "JB | Debian | 5.135.219.159"
+					]
+				}
+			]
+		}
+	]
+  , "Mail": {
+		"EnableNotifications": true
+	  , "SmtpHost": ""
+	  , "SmtpPost": 587
+	  , "SmtpUser": "user"
+	  , "SmtpPass": "pass"
+	  , "EnableSsl": true
+	  , "IsHtml": true
+	  , "From": "veeam-backup@indev.be"
+	  , "To": "booster2ooo@indev.be"
+	  , "Cc": [ "admin@indev.be" ]
+	  , "Templates": {
+			"Success": "Backup_Success"
+		  , "Failure": "Backup_Failure"
+		}
+	}
+}
