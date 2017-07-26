@@ -231,80 +231,100 @@ foreach($targetHost in $config.Hosts)
                     New-Item -ItemType Directory -Force -Path $backupDestinationPath
                 }
                 
-                # Get the VMs to backup
-                $vbrVms = Find-VBRViEntity -Server $vbrServer -Name $backupVms
-                if(!$vbrVms -or $vbrVms.count -eq 0)
-                {
-                    $title = "VMs not found"
-                    $message = "Vms " + [string]$backupVms + " not found for backup set $backupAlias. Skipping backup set."
-                    Log -Title $title -Message $message -Level "warning" -SendMail $TRUE
-                    continue
-                }
-                
                 # Get network credentials if needed
                 $vbrCredentials = $NULL
                 if($backupNetCredential)
                 {
                     $vbrCredentials = Get-VBRCredentials -Name $backupNetCredential
                 }
-                
-                # Create VeeamZip session
-                if($backupEnableEncryption)
-                {
-                    $vbrEncryptionKey = Get-VBREncryptionKey -Description $backupAlias
-                    if(!$vbrEncryptionKey)
-                    {
-                        $vbrEncryptionKey = Add-VBREncryptionKey -Description $backupAlias -Password (cat $backupEncryptionKey | ConvertTo-SecureString)
-                    }
-                    if(!$vbrEncryptionKey)
-                    {
-                        $title = "Encryption key not found"
-                        $message = "Encryption key $backupEncryptionKey not found for backup set $backupAlias. Skipping backup set."
-                        Log -Title $title -Message $message -Level "warning" -SendMail $TRUE
-                        continue
-                    }
-                    if($vbrCredentials)
-                    {
-                        $vbrZipSession = Start-VBRZip -Entity $vbrVms -Folder $backupDestinationPath -Compression $backupCompressionLevel -DisableQuiesce:(!$backupEnableQuiescence) -AutoDelete $backupRetention -EncryptionKey $vbrEncryptionKey -NetworkCredentials $vbrCredentials
-                    }
-                    else {
-                        $vbrZipSession = Start-VBRZip -Entity $vbrVms -Folder $backupDestinationPath -Compression $backupCompressionLevel -DisableQuiesce:(!$backupEnableQuiescence) -AutoDelete $backupRetention -EncryptionKey $vbrEncryptionKey
-                    }
-                }
-                else
-                {
-                    if($vbrCredentials)
-                    {
-                        $vbrZipSession = Start-VBRZip -Entity $vbrVms -Folder $backupDestinationPath -Compression $backupCompressionLevel -DisableQuiesce:(!$backupEnableQuiescence) -AutoDelete $backupRetention -NetworkCredentials $vbrCredentials
-                    }
-                    else
-                    {
-                        $vbrZipSession = Start-VBRZip -Entity $vbrVms -Folder $backupDestinationPath -Compression $backupCompressionLevel -DisableQuiesce:(!$backupEnableQuiescence) -AutoDelete $backupRetention
-                    }
-                }
-                if(!$vbrZipSession)
-                {
-                    $title = "VeeamZIP session is empty"
-                    $message = "VeeamZIP session is empty, backup set $backupAlias failed."
-                    Log -Title $title -Message $message -Level "warning" -SendMail $TRUE
-                    continue
-                }
-                # Get tasks status
-                $vbrZipTaskSessionsLogs = $vbrZipSession.GetTaskSessions().logger.getlog().updatedrecords
-                $failedVbrZipTaskSessions = $vbrZipTaskSessionsLogs | where { $_.status -eq "EWarning" -or $_.Status -eq "EFailed" }
-                $message = ""
-                if ($failedVbrZipTaskSessions -ne $Null)
-                {
-                    $title = "Backup set $backupAlias failed"
-                    $message = "Backup $backupAlias failed`r`n" + ($vbrZipSession | Select-Object @{n="Name";e={($_.name).Substring(0, $_.name.LastIndexOf("("))}} ,@{n="Start Time";e={$_.CreationTime}},@{n="End Time";e={$_.EndTime}},Result,@{n="Details";e={$FailedSessions.Title}})
-                    Log -Title $title -Message $message -Level "error" -SendMail $TRUE
-                }
-                else
-                {
-                    $title = "Backup set $backupAlias successful"
-                    $message = "Backup $backupAlias succeeded.`r`n" + ($vbrZipSession | Select-Object @{n="Name";e={($_.name).Substring(0, $_.name.LastIndexOf("("))}} ,@{n="Start Time";e={$_.CreationTime}},@{n="End Time";e={$_.EndTime}},Result,@{n="Details";e={($TaskSessions | sort creationtime -Descending | select -first 1).Title}})
-                    Log -Title $title -Message $message -Level "success" -SendMail $TRUE
-                }
+				
+				# Get encryption key
+				$vbrEncryptionKey = $NULL
+				if($backupEnableEncryption)
+				{
+					$vbrEncryptionKey = Get-VBREncryptionKey -Description $backupAlias
+					if(!$vbrEncryptionKey)
+					{
+						$vbrEncryptionKey = Add-VBREncryptionKey -Description $backupAlias -Password (cat $backupEncryptionKey | ConvertTo-SecureString)
+					}
+					if(!$vbrEncryptionKey)
+					{
+						$title = "Encryption key not found"
+						$message = "Encryption key $backupEncryptionKey cannot be found nor created for backup set $backupAlias (server $srvName). No encryption will be used for this backup set."
+						Log -Title $title -Message $message -Level "warning" -SendMail $TRUE
+					}
+				}
+				
+                foreach($backupVm in $backupVms)
+				{
+					try
+					{
+						# Get the VMs to backup
+						$vbrVms = Find-VBRViEntity -Server $vbrServer -Name $backupVm
+						if(!$vbrVms -or $vbrVms.count -eq 0)
+						{
+							$title = "VM $backupVm not found"
+							$message = "The VM $backupVm could not be found on server $srvName (backup set $backupAlias). Skipping VM."
+							Log -Title $title -Message $message -Level "warning" -SendMail $TRUE
+							continue
+						}
+						
+						# Create VeeamZip session
+						if($vbrEncryptionKey)
+						{
+							if($vbrCredentials)
+							{
+								$vbrZipSession = Start-VBRZip -Entity $vbrVms -Folder $backupDestinationPath -Compression $backupCompressionLevel -DisableQuiesce:(!$backupEnableQuiescence) -AutoDelete $backupRetention -EncryptionKey $vbrEncryptionKey -NetworkCredentials $vbrCredentials
+							}
+							else {
+								$vbrZipSession = Start-VBRZip -Entity $vbrVms -Folder $backupDestinationPath -Compression $backupCompressionLevel -DisableQuiesce:(!$backupEnableQuiescence) -AutoDelete $backupRetention -EncryptionKey $vbrEncryptionKey
+							}
+						}
+						else
+						{
+							if($vbrCredentials)
+							{
+								$vbrZipSession = Start-VBRZip -Entity $vbrVms -Folder $backupDestinationPath -Compression $backupCompressionLevel -DisableQuiesce:(!$backupEnableQuiescence) -AutoDelete $backupRetention -NetworkCredentials $vbrCredentials
+							}
+							else
+							{
+								$vbrZipSession = Start-VBRZip -Entity $vbrVms -Folder $backupDestinationPath -Compression $backupCompressionLevel -DisableQuiesce:(!$backupEnableQuiescence) -AutoDelete $backupRetention
+							}
+						}
+						if(!$vbrZipSession)
+						{
+							$title = "VeeamZIP session is empty"
+							$message = "VM $backupVm VeeamZIP session result is empty (server $srvName, backup set $backupAlias). Backup probably failed!"
+							Log -Title $title -Message $message -Level "warning" -SendMail $TRUE
+							continue
+						}
+						# Get tasks status
+						$vbrZipTaskSessionsLogs = $vbrZipSession.GetTaskSessions().logger.getlog().updatedrecords
+						$failedVbrZipTaskSessions = $vbrZipTaskSessionsLogs | where { $_.status -eq "EWarning" -or $_.Status -eq "EFailed" }
+						$message = ""
+						if ($failedVbrZipTaskSessions -ne $Null)
+						{
+							$title = "VM $backupVm backup failed"
+							$message = "The VM $backupVm backup for set $backupAlias on server $srvName failed`r`n" + ($vbrZipSession | Select-Object @{n="Name";e={($_.name).Substring(0, $_.name.LastIndexOf("("))}} ,@{n="Start Time";e={$_.CreationTime}},@{n="End Time";e={$_.EndTime}},Result,@{n="Details";e={$FailedSessions.Title}})
+							Log -Title $title -Message $message -Level "error" -SendMail $TRUE
+						}
+						else
+						{
+							$title = "VM $backupVm backup successful"
+							$message = "The VM $backupVm backup for set $backupAlias on server $srvName succeeded.`r`n" + ($vbrZipSession | Select-Object @{n="Name";e={($_.name).Substring(0, $_.name.LastIndexOf("("))}} ,@{n="Start Time";e={$_.CreationTime}},@{n="End Time";e={$_.EndTime}},Result,@{n="Details";e={($TaskSessions | sort creationtime -Descending | select -first 1).Title}})
+							Log -Title $title -Message $message -Level "success" -SendMail $TRUE
+						}
+					}
+					catch
+					{
+						$errorMessage = $_.Exception.Message
+						$failedItem = $_.Exception.ItemName
+						$title = "$VM backupVm backup failed"
+						$message = "The VM $backupVm backup for set $backupAlias on server $srvName failed.`r`n`r`n$failedItem`r`nThe error message was`r`n$errorMessage"
+						Log -Title $title -Message $message -Level "error" -SendMail $TRUE
+						continue
+					}
+				}
             }
             catch
             {
