@@ -2,7 +2,7 @@
 PowerShell script for Veeam Backup Free Edition automation with email notifications.
 
 ## Note
-This script is still very basic and only works with VWWare hosts.
+This script is still very basic and only works with VMWare hosts.
 
 If you need to work with Microsoft Hyper-V, look for cmdlet starting with VBRVi and replace it with VBRHv.
 
